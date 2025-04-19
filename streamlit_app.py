@@ -7,7 +7,7 @@ import numpy as np
 import os
 import gdown
 
-model_url = 'https://drive.google.com/uc?id=1s3pABCDEFghijkLmnopQRstu'  # Ganti ID
+model_url = 'https://drive.google.com/file/d/1UmP6NdpNzl7jR9fROOB11bX5o88WoFRV'  # Ganti ID
 model_path = 'best_model.pt'
 
 if not os.path.exists(model_path):
