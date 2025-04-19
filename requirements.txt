@@ -1,6 +1,5 @@
 streamlit
 torch
 torchvision
-opencv-python
 Pillow
 gdown
