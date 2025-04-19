@@ -1,65 +1,51 @@
 import streamlit as st
 import torch
 from torchvision import transforms
-import cv2
 from PIL import Image
-import numpy as np
 import os
 import gdown
 
-model_url = 'https://drive.google.com/file/d/1UmP6NdpNzl7jR9fROOB11bX5o88WoFRV'  # Ganti ID
+# --- Unduh model jika belum ada ---
+model_url = 'https://drive.google.com/uc?id=1UmP6NdpNzl7jR9fROOB11bX5o88WoFRV'
 model_path = 'best_model.pt'
 
 if not os.path.exists(model_path):
-    with st.spinner("📦 Mengunduh model... tunggu sebentar"):
+    with st.spinner("📦 Mengunduh model... tunggu sebentar..."):
         gdown.download(model_url, model_path, quiet=False)
         st.success("✅ Model berhasil diunduh!")
 
-# Load model
-model_path = 'best_model.pt'
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-model = torch.load(model_path, map_location=device)
+# --- Load model TorchScript ---
+device = torch.device("cpu")
+model = torch.jit.load(model_path, map_location=device)
 model.eval()
 
-# Class names (ganti sesuai label aslimu)
 class_names = ['angry', 'happy', 'neutral', 'sad', 'surprise']
 
-# Preprocessing image
 transform = transforms.Compose([
     transforms.Resize((224, 224)),
     transforms.ToTensor(),
-    transforms.Normalize(mean=[0.5]*3, std=[0.5]*3)
+    transforms.Normalize([0.5]*3, [0.5]*3)
 ])
 
-st.title("Real-time Ekspresi Wajah Detector 😁😡😢")
+st.set_page_config(page_title="Ekspresi Webcam Cloud", layout="centered")
+st.title("🧠 Deteksi Ekspresi Wajah (Versi Cloud Compatible)")
 
-run = st.checkbox('Start Camera')
+st.write("Ambil gambar wajahmu dengan kamera, sistem akan deteksi ekspresimu.")
 
-FRAME_WINDOW = st.image([])
+img_file = st.camera_input("📷 Klik untuk mengambil gambar")
 
-camera = cv2.VideoCapture(0)
+if img_file:
+    image = Image.open(img_file)
+    st.image(image, caption="📸 Gambar diterima", use_column_width=True)
 
-while run:
-    ret, frame = camera.read()
-    if not ret:
-        st.warning("Camera not found")
-        break
-
-    # Convert ke RGB
-    img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    img_pil = Image.fromarray(img)
-    img_tensor = transform(img_pil).unsqueeze(0).to(device)
+    input_tensor = transform(image).unsqueeze(0).to(device)
 
     with torch.no_grad():
-        output = model(img_tensor)
-        pred = torch.argmax(output, 1).item()
-        label = class_names[pred]
+        output = model(input_tensor)
+        pred_idx = torch.argmax(output, dim=1).item()
+        label = class_names[pred_idx]
 
-    # Tampilkan prediksi
-    cv2.putText(img, f"Ekspresi: {label}", (30, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
+    st.success(f"🎭 Ekspresi yang terdeteksi: **{label.upper()}**")
 
-    FRAME_WINDOW.image(img)
-
-else:
-    st.write('Stopped')
-    camera.release()
+    # Otomatis minta ambil ulang
+    st.experimental_rerun()
