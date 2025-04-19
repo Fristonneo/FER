@@ -4,6 +4,16 @@ from torchvision import transforms
 import cv2
 from PIL import Image
 import numpy as np
+import os
+import gdown
+
+model_url = 'https://drive.google.com/uc?id=1s3pABCDEFghijkLmnopQRstu'  # Ganti ID
+model_path = 'best_model.pt'
+
+if not os.path.exists(model_path):
+    with st.spinner("📦 Mengunduh model... tunggu sebentar"):
+        gdown.download(model_url, model_path, quiet=False)
+        st.success("✅ Model berhasil diunduh!")
 
 # Load model
 model_path = 'best_model.pt'
