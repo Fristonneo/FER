@@ -1,52 +1,54 @@
 import streamlit as st
 import torch
 from torchvision import transforms
+from transformers import ViTForImageClassification
 from PIL import Image
 import cv2
 import numpy as np
 import os
 import gdown
 
-# === CONFIG ===
-GDRIVE_MODEL_ID = "1UmP6NdpNzl7jR9fROOB11bX5o88WoFRV"  # Ganti dengan ID model kamu
+# === Konfigurasi model ===
+GDRIVE_MODEL_ID = "1UmP6NdpNzl7jR9fROOB11bX5o88WoFRV"  # Ganti dengan ID Google Drive kamu
 MODEL_PATH = "vit_model.pt"
-LABELS = ['Marah', 'Senang', 'Netral', 'Sedih', 'Kaget']
+MODEL_NAME = "google/vit-base-patch32-224-in21k"
+CLASS_NAMES = ['Anger', 'Happy', 'Neutral', 'Sad', 'Surprise']
 
-# === Fungsi: Unduh model jika belum ada ===
+# === Download & load model ===
 @st.cache_resource
 def download_and_load_model():
     if not os.path.exists(MODEL_PATH):
         url = f"https://drive.google.com/uc?id={GDRIVE_MODEL_ID}"
         gdown.download(url, MODEL_PATH, quiet=False)
-    model = torch.load(MODEL_PATH, map_location="cpu")
+
+    model = ViTForImageClassification.from_pretrained(
+        MODEL_NAME,
+        num_labels=len(CLASS_NAMES),
+        ignore_mismatched_sizes=True
+    )
+    state_dict = torch.load(MODEL_PATH, map_location="cpu")
+    model.load_state_dict(state_dict)
     model.eval()
     return model
 
-# === Fungsi: Preprocessing gambar wajah ===
-def preprocess_face(face_img):
+# === Preprocessing wajah ===
+def preprocess(face_img):
     transform = transforms.Compose([
         transforms.Resize((224, 224)),
         transforms.ToTensor(),
-        transforms.Normalize([0.5]*3, [0.5]*3)
+        transforms.Normalize(mean=[0.5]*3, std=[0.5]*3)
     ])
-    img = Image.fromarray(cv2.cvtColor(face_img, cv2.COLOR_BGR2RGB))
-    return transform(img).unsqueeze(0)
+    face_pil = Image.fromarray(cv2.cvtColor(face_img, cv2.COLOR_BGR2RGB))
+    return transform(face_pil).unsqueeze(0)
 
-# === Fungsi: Prediksi ekspresi wajah ===
-def predict_expression(model, face_tensor):
-    with torch.no_grad():
-        output = model(face_tensor)
-        pred = output.argmax(dim=1).item()
-    return LABELS[pred]
-
-# === UI Streamlit ===
-st.set_page_config(layout="centered")
-st.title("🎭 Deteksi Ekspresi Wajah Realtime")
+# === Streamlit UI ===
+st.set_page_config(page_title="Ekspresi Wajah Realtime", layout="centered")
+st.title("🎭 Deteksi Ekspresi Wajah Realtime dengan ViT")
 
 run = st.toggle("🎥 Aktifkan Kamera")
-model = download_and_load_model()
 frame_window = st.image([])
 
+model = download_and_load_model()
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
 
 if run:
@@ -58,28 +60,31 @@ if run:
     while run:
         ret, frame = cap.read()
         if not ret:
-            st.warning("⚠️ Gagal membaca frame.")
+            st.warning("⚠️ Tidak bisa membaca frame dari kamera.")
             break
 
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        faces = face_cascade.detectMultiScale(gray, 1.1, 4)
+        faces = face_cascade.detectMultiScale(gray, 1.3, 5)
 
         for (x, y, w, h) in faces:
-            face = frame[y:y+h, x:x+w]
-            if face.size == 0:
-                continue
-            try:
-                face_tensor = preprocess_face(face)
-                label = predict_expression(model, face_tensor)
-                cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
-                cv2.putText(frame, label, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX,
-                            0.9, (255, 255, 255), 2, cv2.LINE_AA)
-            except Exception as e:
-                print("Error prediksi:", e)
+            face_img = frame[y:y+h, x:x+w]
+            input_tensor = preprocess(face_img)
+
+            with torch.no_grad():
+                outputs = model(input_tensor).logits
+                probs = torch.nn.functional.softmax(outputs, dim=1)
+                pred_idx = torch.argmax(probs).item()
+                pred_label = CLASS_NAMES[pred_idx]
+                confidence = probs[0][pred_idx].item()
+
+            label_text = f"{pred_label} ({confidence*100:.1f}%)"
+            cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
+            cv2.putText(frame, label_text, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX,
+                        0.8, (0, 255, 0), 2, cv2.LINE_AA)
 
         frame_window.image(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
 
     cap.release()
     cv2.destroyAllWindows()
 else:
-    st.info("Aktifkan toggle di atas untuk mulai kamera.")
+    st.info("Klik toggle untuk memulai kamera dan deteksi ekspresi.")
