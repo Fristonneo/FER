@@ -1,6 +1,7 @@
 streamlit
-opencv-python-headless
 torch
 torchvision
+transformers
+opencv-python-headless
 Pillow
 gdown
