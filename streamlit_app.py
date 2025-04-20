@@ -8,7 +8,7 @@ import os
 import gdown
 
 # === CONFIG ===
-GDRIVE_MODEL_ID = "1AbCdEfGhIjKlMnOpQrSt"  # Ganti dengan ID model kamu
+GDRIVE_MODEL_ID = "1UmP6NdpNzl7jR9fROOB11bX5o88WoFRV"  # Ganti dengan ID model kamu
 MODEL_PATH = "vit_model.pt"
 LABELS = ['Marah', 'Senang', 'Netral', 'Sedih', 'Kaget']
 
